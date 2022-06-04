@@ -1,4 +1,7 @@
 from collections import UserDict
+from datetime import datetime
+from datetime import date
+from itertools import islice
 
 
 class Record:
@@ -10,25 +13,32 @@ class Record:
 		if phone:
 			self.add_phone(phone)
 
-	def add_phone(self, phone):
-		self.phones.append(phone)
+	def __check_phone(self, phone) -> bool:
+		if phone in self.phones:
+			return True
+		return False
 
-	def update_phone(self, phone, new_phone):
-		for i, v in enumerate(self.phones):
-			if v.value == phone.value:
-				self.phones[i] = new_phone
-				break
+	def add_phone(self, phone) -> bool:
+		if not self.__check_phone(phone):
+			self.phones.append(phone)
+			return True
+		return False
 
-	def delete_phone(self, phone):
-		for i, v in enumerate(self.phones):
-			if v.value == phone.value:
-				del self.phones[i]
-				break
+	def update_phone(self, phone, new_phone) -> bool:
+		if self.__check_phone(phone):
+			self.delete_phone(phone)
+			self.add_phone(new_phone)
+			return True
+		return False
+
+	def delete_phone(self, phone) -> bool:
+		if self.__check_phone(phone):
+			self.phones.remove(phone)
+			return True
+		return False
 
 	def days_to_birthday(self):
 		if self.birthday:
-			from datetime import datetime
-			from datetime import date
 			today = date.today()
 			splitted_data = self.birthday.value.split('.')
 			needed_data = datetime(year=int(today.year), month=int(splitted_data[1]),
@@ -38,7 +48,15 @@ class Record:
 			result = difference.days
 			return f'Дней до дня рождения осталось -- {result}'
 		else:
-			return None
+			return "Can't calculate"
+
+	def __str__(self):
+		return f'{self.name} {self.phones} {self.birthday}'
+
+	def __repr__(self):
+		return f'{self.phones if self.phones else "Number not recorded"}; ' \
+		       f'BD: {self.birthday.value if self.birthday else "Birth date not recorded"}; ' \
+		       f'{self.days_to_birthday()}.'
 
 
 class Field:
@@ -48,10 +66,23 @@ class Field:
 
 
 class Name(Field):
-	pass
+
+	@property
+	def value(self):
+		return self.__value
+
+	@value.setter
+	def value(self, value):
+		if value and type(value) is str:
+			self.__value = value
+		else:
+			raise ValueError('Invalid name')
 
 
 class Phone(Field):
+
+	def __repr__(self):
+		return f'{self.__value}'
 
 	@property
 	def value(self):
@@ -67,6 +98,7 @@ class Phone(Field):
 
 
 class Birthday(Field):
+
 	@property
 	def value(self):
 		return self.__value
@@ -75,7 +107,6 @@ class Birthday(Field):
 	def value(self, b_value):
 		if b_value:
 			try:
-				from datetime import datetime
 				datetime.strptime(b_value, "%d.%m.%Y")
 			except ValueError:
 				raise ValueError("Invalid birthday")
@@ -90,24 +121,13 @@ class AddressBook(UserDict):
 	def __next__(self):
 		return next(self.iterator())
 
-	def iterator(self, count_of_records=None):
-		values = {"Name": None, "Phone": None, "Birthday": None}
-		for index, key in enumerate(self.data):
-			if count_of_records and index >= count_of_records:
+	def iterator(self, n=2):
+		start, page = 0, n
+		while True:
+			yield dict(islice(self.data.items(), start, n))
+			start, n = n, n + page
+			if start >= len(self.data):
 				break
-			values["Name"] = key
-			if self.data[key].phones:
-				if len(self.data[key].phones) == 1:
-					values["Phone"] = self.data[key].phones[0].value
-				values["Phone"] = [phone.value for phone in self.data[key].phones]
-			else:
-				values["Phone"] = None
-			if self.data[key].birthday:
-				values["Birthday"] = self.data[key].birthday.value
-			else:
-				values["Birthday"] = None
-			yield f"{index + 1}. {values['Name']}", values["Phone"], values["Birthday"]
-			values = {"Name": None, "Phone": None, "Birthday": None}
 
 
 ...
@@ -139,9 +159,10 @@ if __name__ == '__main__':
 	record_2 = Record(name_2, phone_2, birthday_2)
 	name_3 = Name("Шевченко Тарас Григорьевич")
 	record_3 = Record(name=name_3)
-	name_4 = Name("Шампуршвили Шашлосси Аджикович")
+	name_4 = Name("Карпов Андрей Анатольевич")
 	phone_4 = Phone("+38(093)222-44-34")
-	record_4 = Record(name_4, phone=phone_4)
+	birthday_4 = Birthday("11.12.1958")
+	record_4 = Record(name_4, phone=phone_4, birthday=birthday_4)
 	record_4.add_phone(Phone("+38(093)111-11-11"))
 	name_5 = Name("Быков Леонтий Фёдорович")
 	birthday_5 = Birthday("21.11.1901")
@@ -178,13 +199,12 @@ if __name__ == '__main__':
 				print(f"{v.phones[0].value, v.phones[1].value}")
 	print("-----------------------------------------------------")
 	print("Проверка работы метода next (если убрать комментарий, то через цикл прогонится меньше вариантов):")
-	a = address_book.iterator(count_of_records=2)
+	a = address_book.iterator(n=1)
 	# print(next(a))
 	# print(next(a))
 	# print(next(a))
+
 	print("Проверка прогона через цикл:")
-	for contact in a:
-		print(contact)
-
-	print(address_book['Вырвиглазов Андрей Владимирович'].days_to_birthday())
-
+	for data in a:
+		print(data)
+		s = input("Нажмите Enter для продолжения")
